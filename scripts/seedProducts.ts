@@ -145,6 +145,30 @@ const products: SeedProduct[] = [
 
 const payload = await getPayload({ config })
 
+const categoryNames = Array.from(new Set(products.map((product) => product.category)))
+
+for (const name of categoryNames) {
+  const existing = await payload.find({
+    collection: 'categories',
+    depth: 0,
+    limit: 1,
+    where: {
+      name: {
+        equals: name,
+      },
+    },
+  })
+
+  if (!existing.docs[0]) {
+    await payload.create({
+      collection: 'categories',
+      data: {
+        name,
+      },
+    })
+  }
+}
+
 const categories = await payload.find({
   collection: 'categories',
   depth: 0,
