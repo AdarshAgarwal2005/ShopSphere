@@ -48,26 +48,25 @@ export default function HomePage() {
   useEffect(() => {
     const loadStorefront = async () => {
       try {
-        const userRes = await fetch('/api/users/me', {
-          credentials: 'include',
-        })
+        const [userRes, productRes] = await Promise.all([
+          fetch('/api/users/me', {
+            credentials: 'include',
+          }),
+          fetch('/api/products?depth=1&limit=24'),
+        ])
 
         const userData = await userRes.json()
 
         if (userData.user) {
           setUser(userData.user)
-
-          const productRes = await fetch('/api/products?depth=1&limit=24', {
-            credentials: 'include',
-          })
-
-          if (!productRes.ok) {
-            throw new Error('Unable to load products')
-          }
-
-          const productData = await productRes.json()
-          setProducts(productData.docs ?? [])
         }
+
+        if (!productRes.ok) {
+          throw new Error('Unable to load products')
+        }
+
+        const productData = await productRes.json()
+        setProducts(productData.docs ?? [])
       } catch {
         setError('Something went wrong while loading the storefront.')
       } finally {
@@ -168,6 +167,60 @@ export default function HomePage() {
             <strong>CMS</strong>
             <span>managed from Payload</span>
           </div>
+        </section>
+
+        {error && <p className="alert">{error}</p>}
+
+        <section className="category-row" aria-label="Product categories">
+          {categories.map((category) => (
+            <span key={category}>{category}</span>
+          ))}
+        </section>
+
+        {featuredProducts.length > 0 && (
+          <section className="featured-grid" aria-label="Featured products">
+            {featuredProducts.map((product) => (
+              <article className="feature-card" key={product.id}>
+                {productImage(product) && (
+                  <img src={productImage(product)} alt={product.name} className="feature-image" />
+                )}
+                <div>
+                  <span>{categoryName(product)}</span>
+                  <h2>{product.name}</h2>
+                  <p>{formatter.format(product.price)}</p>
+                </div>
+              </article>
+            ))}
+          </section>
+        )}
+
+        <section className="product-grid" aria-label="All products">
+          {products.map((product) => {
+            const image = productImage(product)
+            const isLowStock = typeof product.stock === 'number' && product.stock <= 10
+
+            return (
+              <article className="product-card" key={product.id}>
+                <div className="product-media">
+                  {image ? <img src={image} alt={product.name} /> : <span>No image</span>}
+                </div>
+                <div className="product-info">
+                  <div className="product-meta">
+                    <span>{categoryName(product)}</span>
+                    <span className={isLowStock ? 'stock low' : 'stock'}>
+                      {isLowStock ? 'Low stock' : 'In stock'}
+                    </span>
+                  </div>
+                  <h3>{product.name}</h3>
+                  <p>{product.description}</p>
+                  <div className="product-footer">
+                    <strong>{formatter.format(product.price)}</strong>
+                    <button type="button">View</button>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
         </section>
       </main>
     )
