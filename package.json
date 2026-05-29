@@ -12,6 +12,8 @@
     "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
     "lint": "cross-env NODE_OPTIONS=--no-deprecation eslint .",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
+    "seed:product-images": "cross-env NODE_OPTIONS=--no-deprecation node --import tsx/esm scripts/seedProductImages.ts",
+    "seed:products": "cross-env NODE_OPTIONS=--no-deprecation node --import tsx/esm scripts/seedProducts.ts",
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
     "test": "pnpm run test:int && pnpm run test:e2e",
     "test:e2e": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" playwright test --config=playwright.config.ts",

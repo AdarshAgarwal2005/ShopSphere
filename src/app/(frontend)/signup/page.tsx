@@ -1,0 +1,100 @@
+'use client'
+
+import type { FormEvent } from 'react'
+import { useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+
+export default function SignupPage() {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const signup = async (e: FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setSubmitting(true)
+
+    const res = await fetch('/api/users', {
+      body: JSON.stringify({
+        email,
+        password,
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    })
+
+    setSubmitting(false)
+
+    if (res.ok) {
+      router.push('/login')
+      return
+    }
+
+    const data = await res.json().catch(() => null)
+    setError(data?.errors?.[0]?.message ?? 'Account creation failed. Try another email.')
+  }
+
+  return (
+    <main className="auth-page signup-page">
+      <Link className="brand auth-brand" href="/">
+        <span className="brand-mark">S</span>
+        <span>ShopSphere</span>
+      </Link>
+
+      <section className="auth-layout">
+        <div className="auth-copy">
+          <p className="eyebrow">Start shopping</p>
+          <h1>Create an account for the full catalog.</h1>
+          <p>
+            Sign up once and your storefront opens into the product grid, category highlights, and
+            fresh inventory from your Payload CMS.
+          </p>
+        </div>
+
+        <form className="auth-card" onSubmit={signup}>
+          <div>
+            <p className="form-kicker">New account</p>
+            <h2>Signup</h2>
+          </div>
+
+          {error && <p className="alert">{error}</p>}
+
+          <label>
+            Email address
+            <input
+              type="text"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            Password
+            <input
+              type="password"
+              placeholder="Create a password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </label>
+
+          <button className="submit-button" type="submit" disabled={submitting}>
+            {submitting ? 'Creating account...' : 'Create account'}
+          </button>
+
+          <p className="auth-switch">
+            Already registered? <Link href="/login">Login</Link>
+          </p>
+        </form>
+      </section>
+    </main>
+  )
+}
