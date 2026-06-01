@@ -14,13 +14,15 @@ type Media = {
 type UserProfile = {
   age?: number | null
   avatar?: Media | string | null
+  avatarDataUrl?: string | null
   email: string
   id: string
   name?: string | null
 }
 
 const avatarUrl = (user?: UserProfile | null) =>
-  typeof user?.avatar === 'object' && user.avatar?.url ? user.avatar.url : undefined
+  user?.avatarDataUrl ||
+  (typeof user?.avatar === 'object' && user.avatar?.url ? user.avatar.url : undefined)
 
 export default function ProfilePage() {
   const router = useRouter()

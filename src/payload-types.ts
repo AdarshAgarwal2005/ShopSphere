@@ -132,6 +132,10 @@ export interface User {
   name?: string | null;
   age?: number | null;
   avatar?: (string | null) | Media;
+  /**
+   * Stores profile thumbnails for serverless deployments.
+   */
+  avatarDataUrl?: string | null;
   role?: ('customer' | 'admin') | null;
   updatedAt: string;
   createdAt: string;
@@ -303,6 +307,7 @@ export interface UsersSelect<T extends boolean = true> {
   name?: T;
   age?: T;
   avatar?: T;
+  avatarDataUrl?: T;
   role?: T;
   updatedAt?: T;
   createdAt?: T;

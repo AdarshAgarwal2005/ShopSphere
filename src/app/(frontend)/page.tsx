@@ -28,6 +28,7 @@ type Product = {
 type User = {
   age?: number | null
   avatar?: Media | string | null
+  avatarDataUrl?: string | null
   email: string
   name?: string | null
 }

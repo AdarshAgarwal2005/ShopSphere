@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { addDataAndFileToRequest } from 'payload'
+import { promises as fs } from 'fs'
 
 const ADMIN_EMAIL = 'adarshagrawal2233@gmail.com'
 const isAdminUser = (user: { email?: string | null; role?: string | null } | null | undefined) =>
@@ -73,18 +74,29 @@ export const Users: CollectionConfig = {
         }
 
         if (req.file) {
-          const avatar = await req.payload.create({
-            collection: 'media',
-            data: {
-              alt:
-                typeof updateData.name === 'string' && updateData.name
-                  ? `${updateData.name} profile photo`
-                  : `${req.user.email} profile photo`,
-            },
-            file: req.file,
-          })
+          if (!req.file.mimetype?.startsWith('image/')) {
+            return Response.json({ message: 'Please upload an image file.' }, { status: 400 })
+          }
 
-          updateData.avatar = avatar.id
+          const fileSizeLimit = 750 * 1024
+
+          if (req.file.size > fileSizeLimit) {
+            return Response.json(
+              { message: 'Profile image must be smaller than 750KB.' },
+              { status: 400 },
+            )
+          }
+
+          const fileData =
+            req.file.data ??
+            (req.file.tempFilePath ? await fs.readFile(req.file.tempFilePath) : undefined)
+
+          if (!fileData) {
+            return Response.json({ message: 'Unable to read profile image.' }, { status: 400 })
+          }
+
+          updateData.avatarDataUrl = `data:${req.file.mimetype};base64,${Buffer.from(fileData).toString('base64')}`
+          updateData.avatar = null
         }
 
         const user = await req.payload.update({
@@ -115,6 +127,13 @@ export const Users: CollectionConfig = {
       name: 'avatar',
       type: 'upload',
       relationTo: 'media',
+    },
+    {
+      name: 'avatarDataUrl',
+      type: 'textarea',
+      admin: {
+        description: 'Stores profile thumbnails for serverless deployments.',
+      },
     },
     {
       name: 'role',

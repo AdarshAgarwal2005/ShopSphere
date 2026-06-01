@@ -30,6 +30,7 @@ type CartLine = CartItem & {
 
 type User = {
   avatar?: Media | string | null
+  avatarDataUrl?: string | null
   email?: string
   name?: string | null
 }

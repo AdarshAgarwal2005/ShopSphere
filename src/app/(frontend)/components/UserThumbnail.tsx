@@ -9,12 +9,14 @@ type Media = {
 
 export type ThumbnailUser = {
   avatar?: Media | string | null
+  avatarDataUrl?: string | null
   email?: string
   name?: string | null
 }
 
 const avatarUrl = (user?: ThumbnailUser | null) =>
-  typeof user?.avatar === 'object' && user.avatar?.url ? user.avatar.url : undefined
+  user?.avatarDataUrl ||
+  (typeof user?.avatar === 'object' && user.avatar?.url ? user.avatar.url : undefined)
 
 const initials = (user?: ThumbnailUser | null) => {
   const source = user?.name || user?.email || 'User'
