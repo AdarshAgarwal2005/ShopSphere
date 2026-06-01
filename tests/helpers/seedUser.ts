@@ -2,9 +2,10 @@ import { getPayload } from 'payload'
 import config from '../../src/payload.config.js'
 
 export const testUser = {
-  email: 'dev@payloadcms.com',
+  email: 'e2e-admin@shopsphere.local',
   password: 'test',
-}
+  role: 'admin',
+} as const
 
 /**
  * Seeds a test user for e2e admin tests.

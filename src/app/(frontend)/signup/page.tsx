@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation'
 
 export default function SignupPage() {
   const router = useRouter()
+  const [name, setName] = useState('')
+  const [age, setAge] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -19,7 +21,9 @@ export default function SignupPage() {
 
     const res = await fetch('/api/users', {
       body: JSON.stringify({
+        age: Number(age),
         email,
+        name,
         password,
       }),
       headers: {
@@ -65,9 +69,33 @@ export default function SignupPage() {
           {error && <p className="alert">{error}</p>}
 
           <label>
-            Email address
+            Full name
             <input
               type="text"
+              placeholder="Your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            Age
+            <input
+              type="number"
+              min="1"
+              max="120"
+              placeholder="Your age"
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            Email address
+            <input
+              type="email"
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

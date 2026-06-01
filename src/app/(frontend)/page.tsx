@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
+import { UserThumbnail } from './components/UserThumbnail'
+
 type Category = {
   id?: string
   name?: string
@@ -24,8 +26,18 @@ type Product = {
 }
 
 type User = {
+  age?: number | null
+  avatar?: Media | string | null
   email: string
+  name?: string | null
 }
+
+type CartItem = {
+  id: string
+  quantity: number
+}
+
+const CART_KEY = 'shopsphere-cart'
 
 const formatter = new Intl.NumberFormat('en-IN', {
   currency: 'INR',
@@ -34,16 +46,46 @@ const formatter = new Intl.NumberFormat('en-IN', {
 })
 
 const categoryName = (product: Product) =>
-  typeof product.category === 'object' && product.category?.name ? product.category.name : 'New Arrival'
+  typeof product.category === 'object' && product.category?.name
+    ? product.category.name
+    : 'New Arrival'
 
 const productImage = (product: Product) =>
   typeof product.image === 'object' && product.image?.url ? product.image.url : undefined
 
+const readCart = (): CartItem[] => {
+  try {
+    const rawCart = window.localStorage.getItem(CART_KEY)
+    const cart = rawCart ? JSON.parse(rawCart) : []
+
+    return Array.isArray(cart) ? cart : []
+  } catch {
+    return []
+  }
+}
+
+const writeCart = (cart: CartItem[]) => {
+  window.localStorage.setItem(CART_KEY, JSON.stringify(cart))
+}
+
+const cartCountFromStorage = () => {
+  if (typeof window === 'undefined') {
+    return 0
+  }
+
+  return readCart().reduce((sum, item) => sum + item.quantity, 0)
+}
+
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null)
   const [products, setProducts] = useState<Product[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [sortMode, setSortMode] = useState('featured')
+  const [cartCount, setCartCount] = useState(cartCountFromStorage)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [toast, setToast] = useState('')
 
   useEffect(() => {
     const loadStorefront = async () => {
@@ -82,7 +124,60 @@ export default function HomePage() {
     [products],
   )
 
+  const filteredProducts = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase()
+    const visibleProducts = products.filter((product) => {
+      const matchesCategory =
+        selectedCategory === 'All' || categoryName(product) === selectedCategory
+      const matchesSearch =
+        !normalizedSearch ||
+        product.name.toLowerCase().includes(normalizedSearch) ||
+        product.description?.toLowerCase().includes(normalizedSearch) ||
+        categoryName(product).toLowerCase().includes(normalizedSearch)
+
+      return matchesCategory && matchesSearch
+    })
+
+    return [...visibleProducts].sort((a, b) => {
+      if (sortMode === 'price-low') {
+        return a.price - b.price
+      }
+
+      if (sortMode === 'price-high') {
+        return b.price - a.price
+      }
+
+      if (sortMode === 'stock') {
+        return (b.stock ?? 0) - (a.stock ?? 0)
+      }
+
+      return 0
+    })
+  }, [products, searchTerm, selectedCategory, sortMode])
+
   const featuredProducts = products.slice(0, 4)
+
+  const addToCart = (product: Product) => {
+    const stock = product.stock ?? 0
+
+    if (stock <= 0) {
+      setToast(`${product.name} is out of stock.`)
+      return
+    }
+
+    const cart = readCart()
+    const existingItem = cart.find((item) => item.id === product.id)
+
+    if (existingItem) {
+      existingItem.quantity = Math.min(existingItem.quantity + 1, stock)
+    } else {
+      cart.push({ id: product.id, quantity: 1 })
+    }
+
+    writeCart(cart)
+    setCartCount(cart.reduce((sum, item) => sum + item.quantity, 0))
+    setToast(`${product.name} added to cart.`)
+  }
 
   const logout = async () => {
     await fetch('/api/users/logout', {
@@ -93,6 +188,114 @@ export default function HomePage() {
     setUser(null)
     setProducts([])
   }
+
+  const catalogContent = (
+    <>
+      <section className="catalog-toolbar" aria-label="Catalog controls">
+        <label className="search-field">
+          <span>Search</span>
+          <input
+            type="search"
+            placeholder="Search shirts, denim, trousers..."
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+          />
+        </label>
+
+        <div className="filter-pills" aria-label="Filter by category">
+          {['All', ...categories].map((category) => (
+            <button
+              className={selectedCategory === category ? 'active' : ''}
+              key={category}
+              type="button"
+              onClick={() => setSelectedCategory(category)}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+
+        <label className="sort-field">
+          <span>Sort</span>
+          <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
+            <option value="featured">Featured</option>
+            <option value="price-low">Price low to high</option>
+            <option value="price-high">Price high to low</option>
+            <option value="stock">Most stock</option>
+          </select>
+        </label>
+      </section>
+
+      <div className="catalog-status">
+        <span>
+          Showing {filteredProducts.length} of {products.length} products
+        </span>
+        {toast && <strong>{toast}</strong>}
+      </div>
+
+      {filteredProducts.length === 0 ? (
+        <section className="empty-cart catalog-empty">
+          <h2>No products found.</h2>
+          <p>Try another search or switch category to see more of the collection.</p>
+          <button
+            className="link-button dark"
+            type="button"
+            onClick={() => {
+              setSearchTerm('')
+              setSelectedCategory('All')
+            }}
+          >
+            Reset filters
+          </button>
+        </section>
+      ) : (
+        <section className="product-grid" aria-label="All products">
+          {filteredProducts.map((product) => {
+            const image = productImage(product)
+            const stock = product.stock ?? 0
+            const isLowStock = stock > 0 && stock <= 10
+            const isUnavailable = stock <= 0
+
+            return (
+              <article className="product-card" key={product.id}>
+                <Link className="product-media" href={`/products/${product.id}`}>
+                  {image ? <img src={image} alt={product.name} /> : <span>No image</span>}
+                  <span className={isUnavailable ? 'media-badge sold' : 'media-badge'}>
+                    {isUnavailable ? 'Sold out' : isLowStock ? 'Few left' : 'Ready'}
+                  </span>
+                </Link>
+                <div className="product-info">
+                  <div className="product-meta">
+                    <span>{categoryName(product)}</span>
+                    <span className={isLowStock || isUnavailable ? 'stock low' : 'stock'}>
+                      {isUnavailable ? 'Out of stock' : isLowStock ? 'Low stock' : 'In stock'}
+                    </span>
+                  </div>
+                  <h3>
+                    <Link href={`/products/${product.id}`}>{product.name}</Link>
+                  </h3>
+                  <p>{product.description}</p>
+                  <div className="product-footer">
+                    <strong>{formatter.format(product.price)}</strong>
+                    <div className="product-actions">
+                      <button
+                        type="button"
+                        onClick={() => addToCart(product)}
+                        disabled={isUnavailable}
+                      >
+                        Add
+                      </button>
+                      <Link href={`/products/${product.id}`}>View</Link>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            )
+          })}
+        </section>
+      )}
+    </>
+  )
 
   if (loading) {
     return (
@@ -128,8 +331,8 @@ export default function HomePage() {
             <p className="eyebrow">Curated menswear store</p>
             <h1>Modern everyday style, ready for your next drop.</h1>
             <p className="hero-text">
-              ShopSphere brings your Payload-powered catalog into a clean, premium storefront
-              built for product discovery, fast browsing, and confident buying.
+              ShopSphere brings your Payload-powered catalog into a clean, premium storefront built
+              for product discovery, fast browsing, and confident buying.
             </p>
             <div className="hero-actions">
               <Link className="link-button dark large" href="/signup">
@@ -194,34 +397,7 @@ export default function HomePage() {
           </section>
         )}
 
-        <section className="product-grid" aria-label="All products">
-          {products.map((product) => {
-            const image = productImage(product)
-            const isLowStock = typeof product.stock === 'number' && product.stock <= 10
-
-            return (
-              <article className="product-card" key={product.id}>
-                <div className="product-media">
-                  {image ? <img src={image} alt={product.name} /> : <span>No image</span>}
-                </div>
-                <div className="product-info">
-                  <div className="product-meta">
-                    <span>{categoryName(product)}</span>
-                    <span className={isLowStock ? 'stock low' : 'stock'}>
-                      {isLowStock ? 'Low stock' : 'In stock'}
-                    </span>
-                  </div>
-                  <h3>{product.name}</h3>
-                  <p>{product.description}</p>
-                  <div className="product-footer">
-                    <strong>{formatter.format(product.price)}</strong>
-                    <button type="button">View</button>
-                  </div>
-                </div>
-              </article>
-            )
-          })}
-        </section>
+        {catalogContent}
       </main>
     )
   }
@@ -234,7 +410,10 @@ export default function HomePage() {
           <span>ShopSphere</span>
         </Link>
         <div className="nav-actions">
-          <span className="user-pill">{user.email}</span>
+          <Link className="cart-link" href="/cart" aria-label={`Cart with ${cartCount} items`}>
+            Cart <span>{cartCount}</span>
+          </Link>
+          <UserThumbnail user={user} showLabel />
           <button className="icon-button" type="button" onClick={logout} aria-label="Logout">
             Logout
           </button>
@@ -253,6 +432,7 @@ export default function HomePage() {
         <div className="catalog-summary">
           <strong>{products.length}</strong>
           <span>products available</span>
+          <Link href="/cart">Cart total items: {cartCount}</Link>
         </div>
       </section>
 
@@ -281,34 +461,7 @@ export default function HomePage() {
         </section>
       )}
 
-      <section className="product-grid" aria-label="All products">
-        {products.map((product) => {
-          const image = productImage(product)
-          const isLowStock = typeof product.stock === 'number' && product.stock <= 10
-
-          return (
-            <article className="product-card" key={product.id}>
-              <div className="product-media">
-                {image ? <img src={image} alt={product.name} /> : <span>No image</span>}
-              </div>
-              <div className="product-info">
-                <div className="product-meta">
-                  <span>{categoryName(product)}</span>
-                  <span className={isLowStock ? 'stock low' : 'stock'}>
-                    {isLowStock ? 'Low stock' : 'In stock'}
-                  </span>
-                </div>
-                <h3>{product.name}</h3>
-                <p>{product.description}</p>
-                <div className="product-footer">
-                  <strong>{formatter.format(product.price)}</strong>
-                  <button type="button">View</button>
-                </div>
-              </div>
-            </article>
-          )
-        })}
-      </section>
+      {catalogContent}
     </main>
   )
 }
