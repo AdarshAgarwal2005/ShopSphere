@@ -56,7 +56,16 @@ export const Users: CollectionConfig = {
           return Response.json({ message: 'Login required' }, { status: 401 })
         }
 
-        await addDataAndFileToRequest(req)
+        try {
+          await addDataAndFileToRequest(req)
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Unable to read profile update. Try a smaller image.'
+
+          return Response.json({ message }, { status: 400 })
+        }
 
         const data = req.data ?? {}
         const updateData: Record<string, unknown> = {}

@@ -24,6 +24,74 @@ const avatarUrl = (user?: UserProfile | null) =>
   user?.avatarDataUrl ||
   (typeof user?.avatar === 'object' && user.avatar?.url ? user.avatar.url : undefined)
 
+const maxProfileImageSize = 700 * 1024
+
+const resizeProfileImage = (file: File) =>
+  new Promise<File>((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Please choose an image file.'))
+      return
+    }
+
+    const image = new Image()
+    const imageUrl = URL.createObjectURL(file)
+
+    image.onload = () => {
+      URL.revokeObjectURL(imageUrl)
+
+      const maxDimension = 512
+      const scale = Math.min(1, maxDimension / Math.max(image.width, image.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(image.width * scale))
+      canvas.height = Math.max(1, Math.round(image.height * scale))
+
+      const context = canvas.getContext('2d')
+
+      if (!context) {
+        reject(new Error('Unable to prepare this image. Try another photo.'))
+        return
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height)
+
+      const qualities = [0.82, 0.7, 0.58]
+
+      const tryQuality = (index: number) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('Unable to prepare this image. Try another photo.'))
+              return
+            }
+
+            if (blob.size <= maxProfileImageSize || index === qualities.length - 1) {
+              if (blob.size > maxProfileImageSize) {
+                reject(new Error('Please choose a smaller image.'))
+                return
+              }
+
+              resolve(new File([blob], 'profile-image.webp', { type: 'image/webp' }))
+              return
+            }
+
+            tryQuality(index + 1)
+          },
+          'image/webp',
+          qualities[index],
+        )
+      }
+
+      tryQuality(0)
+    }
+
+    image.onerror = () => {
+      URL.revokeObjectURL(imageUrl)
+      reject(new Error('Unable to read this image. Try another photo.'))
+    }
+
+    image.src = imageUrl
+  })
+
 export default function ProfilePage() {
   const router = useRouter()
   const [user, setUser] = useState<UserProfile | null>(null)
@@ -255,12 +323,29 @@ export default function ProfilePage() {
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(event) => {
+                  onChange={async (event) => {
                     const file = event.target.files?.[0] ?? null
-                    setAvatar(file)
+                    setError('')
 
-                    if (file) {
-                      setPreview(URL.createObjectURL(file))
+                    if (!file) {
+                      setAvatar(null)
+                      setPreview(avatarUrl(user) ?? '')
+                      return
+                    }
+
+                    try {
+                      const resizedFile = await resizeProfileImage(file)
+                      setAvatar(resizedFile)
+                      setPreview(URL.createObjectURL(resizedFile))
+                    } catch (imageError) {
+                      setAvatar(null)
+                      event.target.value = ''
+                      setPreview(avatarUrl(user) ?? '')
+                      setError(
+                        imageError instanceof Error
+                          ? imageError.message
+                          : 'Unable to prepare this image.',
+                      )
                     }
                   }}
                 />
