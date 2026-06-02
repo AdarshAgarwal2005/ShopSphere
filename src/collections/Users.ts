@@ -56,18 +56,34 @@ export const Users: CollectionConfig = {
           return Response.json({ message: 'Login required' }, { status: 401 })
         }
 
-        try {
-          await addDataAndFileToRequest(req)
-        } catch (error) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : 'Unable to read profile update. Try a smaller image.'
+        const contentType = req.headers.get('content-type') ?? ''
+        let data: Record<string, unknown> = {}
 
-          return Response.json({ message }, { status: 400 })
+        if (contentType.includes('application/json')) {
+          if (typeof req.text !== 'function') {
+            return Response.json({ message: 'Unable to read profile update.' }, { status: 400 })
+          }
+
+          try {
+            data = JSON.parse(await req.text()) as Record<string, unknown>
+          } catch {
+            return Response.json({ message: 'Unable to read profile update.' }, { status: 400 })
+          }
+        } else {
+          try {
+            await addDataAndFileToRequest(req)
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : 'Unable to read profile update. Try a smaller image.'
+
+            return Response.json({ message }, { status: 400 })
+          }
+
+          data = req.data ?? {}
         }
 
-        const data = req.data ?? {}
         const updateData: Record<string, unknown> = {}
 
         if (typeof data.name === 'string') {
@@ -105,6 +121,28 @@ export const Users: CollectionConfig = {
           }
 
           updateData.avatarDataUrl = `data:${req.file.mimetype};base64,${Buffer.from(fileData).toString('base64')}`
+          updateData.avatar = null
+        }
+
+        if (typeof data.avatarDataUrl === 'string' && data.avatarDataUrl) {
+          const isImageDataUrl = /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(
+            data.avatarDataUrl,
+          )
+
+          if (!isImageDataUrl) {
+            return Response.json({ message: 'Please upload an image file.' }, { status: 400 })
+          }
+
+          const dataUrlLimit = 440 * 1024
+
+          if (data.avatarDataUrl.length > dataUrlLimit) {
+            return Response.json(
+              { message: 'Profile image must be smaller. Try another photo.' },
+              { status: 400 },
+            )
+          }
+
+          updateData.avatarDataUrl = data.avatarDataUrl
           updateData.avatar = null
         }
 

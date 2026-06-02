@@ -24,7 +24,7 @@ const avatarUrl = (user?: UserProfile | null) =>
   user?.avatarDataUrl ||
   (typeof user?.avatar === 'object' && user.avatar?.url ? user.avatar.url : undefined)
 
-const maxProfileImageSize = 700 * 1024
+const maxProfileImageSize = 320 * 1024
 
 const resizeProfileImage = (file: File) =>
   new Promise<File>((resolve, reject) => {
@@ -39,7 +39,7 @@ const resizeProfileImage = (file: File) =>
     image.onload = () => {
       URL.revokeObjectURL(imageUrl)
 
-      const maxDimension = 512
+      const maxDimension = 420
       const scale = Math.min(1, maxDimension / Math.max(image.width, image.height))
       const canvas = document.createElement('canvas')
       canvas.width = Math.max(1, Math.round(image.width * scale))
@@ -97,7 +97,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [name, setName] = useState('')
   const [age, setAge] = useState('')
-  const [avatar, setAvatar] = useState<File | null>(null)
+  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null)
   const [preview, setPreview] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -108,7 +108,7 @@ export default function ProfilePage() {
   const resetForm = (nextUser = user) => {
     setName(nextUser?.name ?? '')
     setAge(nextUser?.age ? String(nextUser.age) : '')
-    setAvatar(null)
+    setAvatarDataUrl(null)
     setPreview(avatarUrl(nextUser) ?? '')
   }
 
@@ -135,7 +135,7 @@ export default function ProfilePage() {
       setUser(nextUser)
       setName(nextUser.name ?? '')
       setAge(nextUser.age ? String(nextUser.age) : '')
-      setAvatar(null)
+      setAvatarDataUrl(null)
       setPreview(avatarUrl(nextUser) ?? '')
       setLoading(false)
     }
@@ -149,22 +149,16 @@ export default function ProfilePage() {
     setSuccess('')
     setSaving(true)
 
-    const formData = new FormData()
-    formData.append(
-      '_payload',
-      JSON.stringify({
+    const res = await fetch('/api/users/profile', {
+      body: JSON.stringify({
         age: Number(age),
+        avatarDataUrl,
         name,
       }),
-    )
-
-    if (avatar) {
-      formData.append('file', avatar)
-    }
-
-    const res = await fetch('/api/users/profile', {
-      body: formData,
       credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       method: 'PATCH',
     })
     const data = await res.json().catch(() => null)
@@ -179,7 +173,7 @@ export default function ProfilePage() {
     const nextUser = data.user as UserProfile
     setUser(nextUser)
     setPreview(avatarUrl(nextUser) ?? preview)
-    setAvatar(null)
+    setAvatarDataUrl(null)
     setIsEditing(false)
     setSuccess('Profile updated.')
   }
@@ -328,17 +322,25 @@ export default function ProfilePage() {
                     setError('')
 
                     if (!file) {
-                      setAvatar(null)
+                      setAvatarDataUrl(null)
                       setPreview(avatarUrl(user) ?? '')
                       return
                     }
 
                     try {
                       const resizedFile = await resizeProfileImage(file)
-                      setAvatar(resizedFile)
-                      setPreview(URL.createObjectURL(resizedFile))
+                      const nextPreview = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader()
+                        reader.onload = () => resolve(String(reader.result))
+                        reader.onerror = () =>
+                          reject(new Error('Unable to prepare this image. Try another photo.'))
+                        reader.readAsDataURL(resizedFile)
+                      })
+
+                      setAvatarDataUrl(nextPreview)
+                      setPreview(nextPreview)
                     } catch (imageError) {
-                      setAvatar(null)
+                      setAvatarDataUrl(null)
                       event.target.value = ''
                       setPreview(avatarUrl(user) ?? '')
                       setError(
