@@ -31,6 +31,13 @@ type CartItem = {
   quantity: number
 }
 
+type User = {
+  avatar?: Media | string | null
+  avatarDataUrl?: string | null
+  email: string
+  name?: string | null
+}
+
 const CART_KEY = 'shopsphere-cart'
 
 const formatter = new Intl.NumberFormat('en-IN', {
@@ -72,17 +79,33 @@ const cartCountFromStorage = () => {
 
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>()
+  const [user, setUser] = useState<User | null>(null)
   const [product, setProduct] = useState<Product | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [authChecked, setAuthChecked] = useState(false)
   const [error, setError] = useState('')
   const [cartMessage, setCartMessage] = useState('')
   const [cartCount, setCartCount] = useState(cartCountFromStorage)
   const [imageZoomed, setImageZoomed] = useState(false)
+  const [selectedFit, setSelectedFit] = useState('Regular')
+  const [selectedSize, setSelectedSize] = useState('M')
 
   useEffect(() => {
     const loadProduct = async () => {
       try {
+        const userRes = await fetch('/api/users/me', {
+          credentials: 'include',
+        })
+        const userData = await userRes.json()
+
+        if (!userData.user) {
+          setProduct(null)
+          return
+        }
+
+        setUser(userData.user)
+
         const res = await fetch(`/api/products/${params.id}?depth=1`)
 
         if (!res.ok) {
@@ -94,6 +117,7 @@ export default function ProductDetailPage() {
       } catch {
         setError('We could not find that product.')
       } finally {
+        setAuthChecked(true)
         setLoading(false)
       }
     }
@@ -153,11 +177,46 @@ export default function ProductDetailPage() {
             <span className="brand-mark">S</span>
             <span>ShopSphere</span>
           </Link>
-          <Link className="link-button ghost" href="/">
-            Back to products
-          </Link>
+          <div className="nav-actions">
+            <Link className="link-button ghost" href="/login">
+              Login
+            </Link>
+            <Link className="link-button dark" href="/signup">
+              Signup
+            </Link>
+          </div>
         </nav>
-        <p className="alert">{error}</p>
+        {!authChecked || error ? (
+          <p className="alert">{error}</p>
+        ) : (
+          <section className="guest-hero product-gate">
+            <div className="hero-copy">
+              <p className="eyebrow">Private product page</p>
+              <h1>Login or signup to view this product.</h1>
+              <p className="hero-text">
+                Product images, prices, stock, and add-to-cart controls are only available for
+                ShopSphere members.
+              </p>
+              <div className="hero-actions">
+                <Link className="link-button dark large" href="/login">
+                  Login
+                </Link>
+                <Link className="link-button outline large" href="/signup">
+                  Signup
+                </Link>
+              </div>
+            </div>
+            <div className="guest-lockup compact" aria-label="Locked product preview">
+              <div className="lockup-panel primary">
+                <span className="lock-icon" aria-hidden="true">
+                  S
+                </span>
+                <strong>Protected catalog</strong>
+                <p>Create an account to continue into the product detail page.</p>
+              </div>
+            </div>
+          </section>
+        )}
       </main>
     )
   }
@@ -176,7 +235,7 @@ export default function ProductDetailPage() {
           <Link className="link-button outline" href="/">
             Products
           </Link>
-          <UserThumbnail />
+          <UserThumbnail user={user} />
         </div>
       </nav>
 
@@ -199,6 +258,35 @@ export default function ProductDetailPage() {
             {product.description || 'This product does not have a description yet.'}
           </p>
 
+          <div className="detail-options" aria-label="Style options">
+            <div>
+              <span>Fit</span>
+              {['Regular', 'Relaxed', 'Slim'].map((fit) => (
+                <button
+                  className={selectedFit === fit ? 'active' : ''}
+                  key={fit}
+                  type="button"
+                  onClick={() => setSelectedFit(fit)}
+                >
+                  {fit}
+                </button>
+              ))}
+            </div>
+            <div>
+              <span>Size</span>
+              {['S', 'M', 'L', 'XL'].map((size) => (
+                <button
+                  className={selectedSize === size ? 'active' : ''}
+                  key={size}
+                  type="button"
+                  onClick={() => setSelectedSize(size)}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <dl className="detail-facts">
             <div>
               <dt>Availability</dt>
@@ -209,10 +297,17 @@ export default function ProductDetailPage() {
               <dd>{categoryName(product)}</dd>
             </div>
             <div>
-              <dt>Cart total</dt>
-              <dd>{totalPreview}</dd>
+              <dt>Selected</dt>
+              <dd>
+                {selectedFit}, {selectedSize}
+              </dd>
             </div>
           </dl>
+
+          <div className="detail-total">
+            <span>Estimated cart total</span>
+            <strong>{totalPreview}</strong>
+          </div>
 
           <div className="cart-controls" aria-label="Choose quantity">
             <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))}>

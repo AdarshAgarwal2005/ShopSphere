@@ -83,6 +83,8 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [sortMode, setSortMode] = useState('featured')
+  const [priceCap, setPriceCap] = useState(0)
+  const [activeSpotlight, setActiveSpotlight] = useState(0)
   const [cartCount, setCartCount] = useState(cartCountFromStorage)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -91,25 +93,26 @@ export default function HomePage() {
   useEffect(() => {
     const loadStorefront = async () => {
       try {
-        const [userRes, productRes] = await Promise.all([
-          fetch('/api/users/me', {
-            credentials: 'include',
-          }),
-          fetch('/api/products?depth=1&limit=24'),
-        ])
-
+        const userRes = await fetch('/api/users/me', {
+          credentials: 'include',
+        })
         const userData = await userRes.json()
 
-        if (userData.user) {
-          setUser(userData.user)
-        }
+        const productRes = await fetch('/api/products?depth=1&limit=24')
 
         if (!productRes.ok) {
           throw new Error('Unable to load products')
         }
 
         const productData = await productRes.json()
-        setProducts(productData.docs ?? [])
+        const docs = productData.docs ?? []
+
+        if (userData.user) {
+          setUser(userData.user)
+        }
+
+        setProducts(docs)
+        setPriceCap(Math.max(...docs.map((product: Product) => product.price), 0))
       } catch {
         setError('Something went wrong while loading the storefront.')
       } finally {
@@ -125,18 +128,24 @@ export default function HomePage() {
     [products],
   )
 
+  const maxPrice = useMemo(
+    () => Math.max(...products.map((product) => product.price), 0),
+    [products],
+  )
+
   const filteredProducts = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase()
     const visibleProducts = products.filter((product) => {
       const matchesCategory =
         selectedCategory === 'All' || categoryName(product) === selectedCategory
+      const matchesPrice = !priceCap || product.price <= priceCap
       const matchesSearch =
         !normalizedSearch ||
         product.name.toLowerCase().includes(normalizedSearch) ||
         product.description?.toLowerCase().includes(normalizedSearch) ||
         categoryName(product).toLowerCase().includes(normalizedSearch)
 
-      return matchesCategory && matchesSearch
+      return matchesCategory && matchesPrice && matchesSearch
     })
 
     return [...visibleProducts].sort((a, b) => {
@@ -154,9 +163,11 @@ export default function HomePage() {
 
       return 0
     })
-  }, [products, searchTerm, selectedCategory, sortMode])
+  }, [priceCap, products, searchTerm, selectedCategory, sortMode])
 
   const featuredProducts = products.slice(0, 4)
+  const previewProducts = products.slice(0, 3)
+  const spotlightProduct = featuredProducts[activeSpotlight % Math.max(featuredProducts.length, 1)]
 
   const addToCart = (product: Product) => {
     const stock = product.stock ?? 0
@@ -225,6 +236,21 @@ export default function HomePage() {
             <option value="stock">Most stock</option>
           </select>
         </label>
+
+        {maxPrice > 0 && (
+          <label className="price-field">
+            <span>Max price</span>
+            <input
+              type="range"
+              min="0"
+              max={maxPrice}
+              step="100"
+              value={priceCap || maxPrice}
+              onChange={(event) => setPriceCap(Number(event.target.value))}
+            />
+            <strong>{formatter.format(priceCap || maxPrice)}</strong>
+          </label>
+        )}
       </section>
 
       <div className="catalog-status">
@@ -244,6 +270,7 @@ export default function HomePage() {
             onClick={() => {
               setSearchTerm('')
               setSelectedCategory('All')
+              setPriceCap(maxPrice)
             }}
           >
             Reset filters
@@ -290,6 +317,7 @@ export default function HomePage() {
                     </div>
                   </div>
                 </div>
+                <div className="product-card-glow" aria-hidden="true" />
               </article>
             )
           })}
@@ -327,13 +355,13 @@ export default function HomePage() {
           </div>
         </nav>
 
-        <section className="guest-hero">
+        <section className="guest-hero public-home">
           <div className="hero-copy">
-            <p className="eyebrow">Curated menswear store</p>
-            <h1>Modern everyday style, ready for your next drop.</h1>
+            <p className="eyebrow">Modern menswear marketplace</p>
+            <h1>Discover everyday style curated for sharper shopping.</h1>
             <p className="hero-text">
-              ShopSphere brings your Payload-powered catalog into a clean, premium storefront built
-              for product discovery, fast browsing, and confident buying.
+              ShopSphere brings shirts, tees, denim, and trousers into a clean storefront with
+              polished product previews. Login or signup to open the full catalog, cart, and checkout.
             </p>
             <div className="hero-actions">
               <Link className="link-button dark large" href="/signup">
@@ -343,62 +371,81 @@ export default function HomePage() {
                 Login
               </Link>
             </div>
-          </div>
-
-          <div className="hero-showcase" aria-label="Featured clothing preview">
-            <div className="showcase-card tall">
-              <span>Premium denim</span>
+            <div className="access-metrics home-metrics" aria-label="Store highlights">
+              <div>
+                <strong>{products.length || 'Fresh'}</strong>
+                <span>catalog pieces</span>
+              </div>
+              <div>
+                <strong>Curated</strong>
+                <span>menswear edits</span>
+              </div>
+              <div>
+                <strong>Secure</strong>
+                <span>member checkout</span>
+              </div>
             </div>
-            <div className="showcase-card warm">
-              <span>Sharp shirts</span>
-            </div>
-            <div className="showcase-card cool">
-              <span>Daily tees</span>
-            </div>
           </div>
-        </section>
 
-        <section className="trust-strip" aria-label="Store benefits">
-          <div>
-            <strong>16+</strong>
-            <span>sample products seeded</span>
-          </div>
-          <div>
-            <strong>4</strong>
-            <span>organized categories</span>
-          </div>
-          <div>
-            <strong>CMS</strong>
-            <span>managed from Payload</span>
-          </div>
-        </section>
-
-        {error && <p className="alert">{error}</p>}
-
-        <section className="category-row" aria-label="Product categories">
-          {categories.map((category) => (
-            <span key={category}>{category}</span>
-          ))}
-        </section>
-
-        {featuredProducts.length > 0 && (
-          <section className="featured-grid" aria-label="Featured products">
-            {featuredProducts.map((product) => (
-              <article className="feature-card" key={product.id}>
-                {productImage(product) && (
-                  <img src={productImage(product)} alt={product.name} className="feature-image" />
+          <div className="public-showcase" aria-label="Featured product preview">
+            {previewProducts[0] && (
+              <article className="preview-card hero-preview">
+                {productImage(previewProducts[0]) && (
+                  <img src={productImage(previewProducts[0])} alt={previewProducts[0].name} />
                 )}
                 <div>
-                  <span>{categoryName(product)}</span>
-                  <h2>{product.name}</h2>
-                  <p>{formatter.format(product.price)}</p>
+                  <span>{categoryName(previewProducts[0])}</span>
+                  <h2>{previewProducts[0].name}</h2>
+                  <p>{formatter.format(previewProducts[0].price)}</p>
                 </div>
               </article>
-            ))}
+            )}
+
+            <div className="preview-stack">
+              {previewProducts.slice(1).map((product) => (
+                <article className="preview-card mini-preview" key={product.id}>
+                  {productImage(product) && <img src={productImage(product)} alt={product.name} />}
+                  <div>
+                    <span>{categoryName(product)}</span>
+                    <h3>{product.name}</h3>
+                    <p>{formatter.format(product.price)}</p>
+                  </div>
+                </article>
+              ))}
+
+              <div className="join-card">
+                <span>Members get full access</span>
+                <strong>View details, add to cart, and checkout after login.</strong>
+                <Link className="link-button dark" href="/signup">
+                  Join now
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {previewProducts.length > 0 && (
+          <section className="public-product-strip" aria-label="Product preview">
+            <div className="section-heading">
+              <p className="eyebrow">Preview the edit</p>
+              <h2>A small look at what is waiting inside.</h2>
+            </div>
+            <div className="preview-row">
+              {products.slice(0, 6).map((product) => (
+                <article className="strip-card" key={product.id}>
+                  {productImage(product) && <img src={productImage(product)} alt={product.name} />}
+                  <div>
+                    <span>{categoryName(product)}</span>
+                    <strong>{product.name}</strong>
+                    <p>{formatter.format(product.price)}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
           </section>
         )}
 
-        {catalogContent}
+        {error && <p className="alert">{error}</p>}
       </main>
     )
   }
@@ -424,17 +471,22 @@ export default function HomePage() {
       <section className="catalog-hero">
         <div>
           <p className="eyebrow">Live Payload catalog</p>
-          <h1>Products your client can actually picture selling.</h1>
+          <h1>Shop the drop with a faster, richer catalog.</h1>
           <p className="hero-text">
-            Browse the seeded collection with real-looking product photography, category labels,
-            inventory status, and polished responsive cards.
+            Search, filter, sort, preview inventory, and jump into each product with smooth,
+            image-forward shopping built around the current Payload collection.
           </p>
         </div>
-        <div className="catalog-summary">
-          <strong>{products.length}</strong>
-          <span>products available</span>
-          <Link href="/cart">Cart total items: {cartCount}</Link>
-        </div>
+        {spotlightProduct && (
+          <Link className="catalog-spotlight" href={`/products/${spotlightProduct.id}`}>
+            {productImage(spotlightProduct) && (
+              <img src={productImage(spotlightProduct)} alt={spotlightProduct.name} />
+            )}
+            <span>{categoryName(spotlightProduct)}</span>
+            <strong>{spotlightProduct.name}</strong>
+            <em>{formatter.format(spotlightProduct.price)}</em>
+          </Link>
+        )}
       </section>
 
       {error && <p className="alert">{error}</p>}
@@ -446,9 +498,13 @@ export default function HomePage() {
       </section>
 
       {featuredProducts.length > 0 && (
-        <section className="featured-grid" aria-label="Featured products">
-          {featuredProducts.map((product) => (
-            <article className="feature-card" key={product.id}>
+        <section className="featured-grid interactive" aria-label="Featured products">
+          {featuredProducts.map((product, index) => (
+            <article
+              className={activeSpotlight === index ? 'feature-card active' : 'feature-card'}
+              key={product.id}
+              onMouseEnter={() => setActiveSpotlight(index)}
+            >
               {productImage(product) && (
                 <img src={productImage(product)} alt={product.name} className="feature-image" />
               )}
