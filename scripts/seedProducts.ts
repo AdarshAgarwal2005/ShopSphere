@@ -9,6 +9,8 @@ type SeedProduct = {
   price: number
   description: string
   category: string
+  rating: number
+  ratingCount: number
   stock: number
 }
 
@@ -19,6 +21,8 @@ const products: SeedProduct[] = [
     description:
       'Mid-rise straight fit jeans in deep indigo denim with mild whiskering, five-pocket styling, and a comfortable all-day stretch.',
     category: 'Jeans',
+    rating: 4.6,
+    ratingCount: 31,
     stock: 42,
   },
   {
@@ -27,6 +31,8 @@ const products: SeedProduct[] = [
     description:
       'Clean black slim jeans made from stretch cotton denim with a tapered leg, tonal stitching, and a polished everyday finish.',
     category: 'Jeans',
+    rating: 4.7,
+    ratingCount: 28,
     stock: 36,
   },
   {
@@ -35,6 +41,8 @@ const products: SeedProduct[] = [
     description:
       'Relaxed light wash jeans with a soft worn-in feel, roomy thigh, classic button closure, and casual weekend styling.',
     category: 'Jeans',
+    rating: 4.3,
+    ratingCount: 22,
     stock: 28,
   },
   {
@@ -43,6 +51,8 @@ const products: SeedProduct[] = [
     description:
       'Grey tapered denim jeans with subtle fading, reinforced seams, and a modern fit that works with sneakers or boots.',
     category: 'Jeans',
+    rating: 4.4,
+    ratingCount: 25,
     stock: 31,
   },
   {
@@ -51,6 +61,8 @@ const products: SeedProduct[] = [
     description:
       'Navy flat-front trousers cut from a wrinkle-resistant fabric with a neat waistband, slim profile, and office-ready drape.',
     category: 'Trouser',
+    rating: 4.5,
+    ratingCount: 34,
     stock: 45,
   },
   {
@@ -59,6 +71,8 @@ const products: SeedProduct[] = [
     description:
       'Charcoal trousers with front pleats, a tailored fall, belt loops, and a soft blended fabric for workdays and dinners.',
     category: 'Trouser',
+    rating: 4.2,
+    ratingCount: 19,
     stock: 27,
   },
   {
@@ -67,6 +81,8 @@ const products: SeedProduct[] = [
     description:
       'Versatile khaki chinos with a clean tapered leg, side pockets, back welt pockets, and comfortable cotton twill construction.',
     category: 'Trouser',
+    rating: 4.6,
+    ratingCount: 37,
     stock: 52,
   },
   {
@@ -75,6 +91,8 @@ const products: SeedProduct[] = [
     description:
       'Olive utility trousers with reinforced pocketing, adjustable drawcord detail, and a relaxed fit for travel or daily wear.',
     category: 'Trouser',
+    rating: 4.4,
+    ratingCount: 24,
     stock: 34,
   },
   {
@@ -83,6 +101,8 @@ const products: SeedProduct[] = [
     description:
       'Crisp white Oxford shirt with a button-down collar, breathable cotton weave, curved hem, and a smart regular fit.',
     category: 'Shirt',
+    rating: 4.8,
+    ratingCount: 42,
     stock: 60,
   },
   {
@@ -91,6 +111,8 @@ const products: SeedProduct[] = [
     description:
       'Sky blue linen blend shirt with a relaxed texture, roll-up sleeve tabs, and airy comfort for warm-weather dressing.',
     category: 'Shirt',
+    rating: 4.5,
+    ratingCount: 29,
     stock: 38,
   },
   {
@@ -99,6 +121,8 @@ const products: SeedProduct[] = [
     description:
       'Black casual shirt with a subtle all-over print, spread collar, lightweight fabric, and an easy untucked length.',
     category: 'Shirt',
+    rating: 4.3,
+    ratingCount: 26,
     stock: 41,
   },
   {
@@ -107,6 +131,8 @@ const products: SeedProduct[] = [
     description:
       'Soft olive checked flannel shirt with brushed cotton feel, chest pocket, and a warm layer-friendly regular fit.',
     category: 'Shirt',
+    rating: 4.7,
+    ratingCount: 21,
     stock: 24,
   },
   {
@@ -115,6 +141,8 @@ const products: SeedProduct[] = [
     description:
       'Essential white crew neck T-shirt made from soft cotton jersey with a clean neckline and reliable everyday fit.',
     category: 'T-shirt',
+    rating: 4.6,
+    ratingCount: 48,
     stock: 75,
   },
   {
@@ -123,6 +151,8 @@ const products: SeedProduct[] = [
     description:
       'Navy cotton T-shirt with a single chest pocket, smooth jersey handfeel, and a relaxed shape for daily rotation.',
     category: 'T-shirt',
+    rating: 4.4,
+    ratingCount: 33,
     stock: 58,
   },
   {
@@ -131,6 +161,8 @@ const products: SeedProduct[] = [
     description:
       'Maroon graphic T-shirt with a soft screen print, ribbed crew neck, and breathable cotton fabric for casual styling.',
     category: 'T-shirt',
+    rating: 4.2,
+    ratingCount: 27,
     stock: 47,
   },
   {
@@ -139,6 +171,8 @@ const products: SeedProduct[] = [
     description:
       'Heather grey oversized T-shirt with dropped shoulders, heavyweight jersey, and a streetwear-inspired boxy silhouette.',
     category: 'T-shirt',
+    rating: 4.7,
+    ratingCount: 36,
     stock: 33,
   },
 ]
@@ -200,6 +234,9 @@ for (const product of products) {
     price: product.price,
     description: product.description,
     category: categoryId,
+    averageRating: product.rating,
+    ratingCount: product.ratingCount,
+    ratingTotal: Number((product.rating * product.ratingCount).toFixed(1)),
     stock: product.stock,
   }
 

@@ -19,7 +19,9 @@ type Product = {
   id: string
   name: string
   price: number
+  averageRating?: number | null
   description?: string
+  ratingCount?: number | null
   stock?: number
   category?: Category | string
   image?: Media | string
@@ -53,6 +55,42 @@ const categoryName = (product: Product) =>
 
 const productImage = (product: Product) =>
   typeof product.image === 'object' && product.image?.url ? product.image.url : undefined
+
+const starterRatingForName = (name?: string | null) => {
+  const source = name || 'ShopSphere'
+  const score = Array.from(source).reduce((sum, char) => sum + char.charCodeAt(0), 0)
+
+  return Number((4.1 + (score % 8) / 10).toFixed(1))
+}
+
+const productRating = (product: Product) =>
+  typeof product.averageRating === 'number' && product.averageRating > 0
+    ? Number(product.averageRating.toFixed(1))
+    : starterRatingForName(product.name)
+
+const productRatingCount = (product: Product) =>
+  typeof product.ratingCount === 'number' && product.ratingCount > 0 ? product.ratingCount : 18
+
+const RatingStars = ({ product, compact = false }: { compact?: boolean; product: Product }) => {
+  const rating = productRating(product)
+
+  return (
+    <div
+      className={compact ? 'rating-stars compact' : 'rating-stars'}
+      aria-label={`${rating} out of 5 stars`}
+    >
+      <span aria-hidden="true">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <b className={index < Math.round(rating) ? 'filled' : ''} key={index}>
+            ★
+          </b>
+        ))}
+      </span>
+      <strong>{rating.toFixed(1)}</strong>
+      {!compact && <em>({productRatingCount(product)})</em>}
+    </div>
+  )
+}
 
 const readCart = (): CartItem[] => {
   try {
@@ -302,6 +340,7 @@ export default function HomePage() {
                   <h3>
                     <Link href={`/products/${product.id}`}>{product.name}</Link>
                   </h3>
+                  <RatingStars product={product} />
                   <p>{product.description}</p>
                   <div className="product-footer">
                     <strong>{formatter.format(product.price)}</strong>
@@ -396,6 +435,7 @@ export default function HomePage() {
                 <div>
                   <span>{categoryName(previewProducts[0])}</span>
                   <h2>{previewProducts[0].name}</h2>
+                  <RatingStars compact product={previewProducts[0]} />
                   <p>{formatter.format(previewProducts[0].price)}</p>
                 </div>
               </article>
@@ -408,6 +448,7 @@ export default function HomePage() {
                   <div>
                     <span>{categoryName(product)}</span>
                     <h3>{product.name}</h3>
+                    <RatingStars compact product={product} />
                     <p>{formatter.format(product.price)}</p>
                   </div>
                 </article>
@@ -437,6 +478,7 @@ export default function HomePage() {
                   <div>
                     <span>{categoryName(product)}</span>
                     <strong>{product.name}</strong>
+                    <RatingStars compact product={product} />
                     <p>{formatter.format(product.price)}</p>
                   </div>
                 </article>
@@ -484,6 +526,7 @@ export default function HomePage() {
             )}
             <span>{categoryName(spotlightProduct)}</span>
             <strong>{spotlightProduct.name}</strong>
+            <RatingStars compact product={spotlightProduct} />
             <em>{formatter.format(spotlightProduct.price)}</em>
           </Link>
         )}
@@ -511,6 +554,7 @@ export default function HomePage() {
               <div>
                 <span>{categoryName(product)}</span>
                 <h2>{product.name}</h2>
+                <RatingStars compact product={product} />
                 <p>{formatter.format(product.price)}</p>
               </div>
             </article>

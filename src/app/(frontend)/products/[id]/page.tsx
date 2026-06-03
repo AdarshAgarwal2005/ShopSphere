@@ -20,10 +20,19 @@ type Product = {
   id: string
   name: string
   price: number
+  averageRating?: number | null
   description?: string
+  ratingCount?: number | null
+  ratings?: ProductRating[]
   stock?: number
   category?: Category | string
   image?: Media | string
+}
+
+type ProductRating = {
+  id?: string
+  rating?: number | null
+  user?: User | string | null
 }
 
 type CartItem = {
@@ -53,6 +62,35 @@ const categoryName = (product: Product) =>
 
 const productImage = (product: Product) =>
   typeof product.image === 'object' && product.image?.url ? product.image.url : undefined
+
+const starterRatingForName = (name?: string | null) => {
+  const source = name || 'ShopSphere'
+  const score = Array.from(source).reduce((sum, char) => sum + char.charCodeAt(0), 0)
+
+  return Number((4.1 + (score % 8) / 10).toFixed(1))
+}
+
+const productRating = (product: Product) =>
+  typeof product.averageRating === 'number' && product.averageRating > 0
+    ? Number(product.averageRating.toFixed(1))
+    : starterRatingForName(product.name)
+
+const productRatingCount = (product: Product) =>
+  typeof product.ratingCount === 'number' && product.ratingCount > 0 ? product.ratingCount : 18
+
+const RatingStars = ({ rating, count }: { count: number; rating: number }) => (
+  <div className="rating-stars detail-rating" aria-label={`${rating} out of 5 stars`}>
+    <span aria-hidden="true">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <b className={index < Math.round(rating) ? 'filled' : ''} key={index}>
+          ★
+        </b>
+      ))}
+    </span>
+    <strong>{rating.toFixed(1)}</strong>
+    <em>average from {count} ratings</em>
+  </div>
+)
 
 const readCart = (): CartItem[] => {
   try {
@@ -90,6 +128,9 @@ export default function ProductDetailPage() {
   const [imageZoomed, setImageZoomed] = useState(false)
   const [selectedFit, setSelectedFit] = useState('Regular')
   const [selectedSize, setSelectedSize] = useState('M')
+  const [selectedRating, setSelectedRating] = useState(0)
+  const [ratingMessage, setRatingMessage] = useState('')
+  const [ratingSubmitting, setRatingSubmitting] = useState(false)
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -130,6 +171,8 @@ export default function ProductDetailPage() {
   const stock = product?.stock ?? 0
   const isUnavailable = stock <= 0
   const image = product ? productImage(product) : undefined
+  const averageRating = product ? productRating(product) : 0
+  const ratingCount = product ? productRatingCount(product) : 0
 
   const totalPreview = useMemo(() => {
     if (!product) {
@@ -156,6 +199,36 @@ export default function ProductDetailPage() {
     writeCart(cart)
     setCartCount(cart.reduce((sum, item) => sum + item.quantity, 0))
     setCartMessage(`${product.name} added to cart.`)
+  }
+
+  const submitRating = async () => {
+    if (!product || !selectedRating) {
+      setRatingMessage('Choose a star rating first.')
+      return
+    }
+
+    setRatingSubmitting(true)
+    setRatingMessage('')
+
+    const res = await fetch(`/api/products/${product.id}/rating`, {
+      body: JSON.stringify({ rating: selectedRating }),
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+    })
+    const data = await res.json().catch(() => null)
+
+    setRatingSubmitting(false)
+
+    if (!res.ok) {
+      setRatingMessage(data?.message ?? 'Unable to save rating.')
+      return
+    }
+
+    setProduct(data.product)
+    setRatingMessage(`Thanks. You rated this ${selectedRating} out of 5.`)
   }
 
   if (loading) {
@@ -254,9 +327,40 @@ export default function ProductDetailPage() {
           <p className="eyebrow">{categoryName(product)}</p>
           <h1>{product.name}</h1>
           <p className="detail-price">{formatter.format(product.price)}</p>
+          <RatingStars count={ratingCount} rating={averageRating} />
           <p className="detail-description">
             {product.description || 'This product does not have a description yet.'}
           </p>
+
+          <section className="rating-panel" aria-label="Rate this product">
+            <div>
+              <span>Rate this product</span>
+              <strong>{selectedRating ? `${selectedRating}/5` : 'Choose stars'}</strong>
+            </div>
+            <div className="rating-input" role="radiogroup" aria-label="Choose rating">
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button
+                  aria-checked={selectedRating === rating}
+                  className={selectedRating >= rating ? 'active' : ''}
+                  key={rating}
+                  role="radio"
+                  type="button"
+                  onClick={() => setSelectedRating(rating)}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            <button
+              className="link-button dark"
+              type="button"
+              onClick={submitRating}
+              disabled={ratingSubmitting}
+            >
+              {ratingSubmitting ? 'Saving rating...' : 'Submit rating'}
+            </button>
+            {ratingMessage && <p>{ratingMessage}</p>}
+          </section>
 
           <div className="detail-options" aria-label="Style options">
             <div>
