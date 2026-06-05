@@ -8,6 +8,6 @@ test.describe('Frontend', () => {
 
     const heading = page.locator('h1').first()
 
-    await expect(heading).toContainText(/Discover everyday style|Shop the drop/)
+    await expect(heading).toContainText('Enhancing your everyday style.')
   })
 })

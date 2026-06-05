@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
+import { SphereAIChat } from './components/SphereAIChat'
+import { StoreFooter } from './components/StoreFooter'
 import { UserThumbnail } from './components/UserThumbnail'
 
 type Category = {
@@ -41,6 +43,7 @@ type CartItem = {
 }
 
 const CART_KEY = 'shopsphere-cart'
+const PRODUCTS_PER_PAGE = 8
 
 const formatter = new Intl.NumberFormat('en-IN', {
   currency: 'INR',
@@ -103,10 +106,6 @@ const readCart = (): CartItem[] => {
   }
 }
 
-const writeCart = (cart: CartItem[]) => {
-  window.localStorage.setItem(CART_KEY, JSON.stringify(cart))
-}
-
 const cartCountFromStorage = () => {
   if (typeof window === 'undefined') {
     return 0
@@ -115,18 +114,18 @@ const cartCountFromStorage = () => {
   return readCart().reduce((sum, item) => sum + item.quantity, 0)
 }
 
-export default function HomePage() {
+export function StorefrontPage({ forceShopView = false }: { forceShopView?: boolean }) {
+  const isShopView = forceShopView
   const [user, setUser] = useState<User | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [sortMode, setSortMode] = useState('featured')
   const [priceCap, setPriceCap] = useState(0)
-  const [activeSpotlight, setActiveSpotlight] = useState(0)
-  const [cartCount, setCartCount] = useState(cartCountFromStorage)
+  const [cartCount] = useState(cartCountFromStorage)
+  const [visibleProductCount, setVisibleProductCount] = useState(PRODUCTS_PER_PAGE)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [toast, setToast] = useState('')
 
   useEffect(() => {
     const loadStorefront = async () => {
@@ -203,31 +202,15 @@ export default function HomePage() {
     })
   }, [priceCap, products, searchTerm, selectedCategory, sortMode])
 
-  const featuredProducts = products.slice(0, 4)
   const previewProducts = products.slice(0, 3)
-  const spotlightProduct = featuredProducts[activeSpotlight % Math.max(featuredProducts.length, 1)]
-
-  const addToCart = (product: Product) => {
-    const stock = product.stock ?? 0
-
-    if (stock <= 0) {
-      setToast(`${product.name} is out of stock.`)
-      return
-    }
-
-    const cart = readCart()
-    const existingItem = cart.find((item) => item.id === product.id)
-
-    if (existingItem) {
-      existingItem.quantity = Math.min(existingItem.quantity + 1, stock)
-    } else {
-      cart.push({ id: product.id, quantity: 1 })
-    }
-
-    writeCart(cart)
-    setCartCount(cart.reduce((sum, item) => sum + item.quantity, 0))
-    setToast(`${product.name} added to cart.`)
-  }
+  const heroProduct = previewProducts[0] || products[0]
+  const editorialProducts = products.slice(0, 6)
+  const visibleProducts = filteredProducts.slice(0, visibleProductCount)
+  const hasMoreProducts = visibleProductCount < filteredProducts.length
+  const categoryTiles = categories
+    .slice(0, 4)
+    .map((category) => products.find((product) => categoryName(product) === category))
+    .filter((product): product is Product => Boolean(product))
 
   const logout = async () => {
     await fetch('/api/users/logout', {
@@ -239,64 +222,109 @@ export default function HomePage() {
     setProducts([])
   }
 
+  const categoryCounts = useMemo(
+    () =>
+      categories.map((category) => ({
+        count: products.filter((product) => categoryName(product) === category).length,
+        name: category,
+      })),
+    [categories, products],
+  )
+
   const catalogContent = (
     <>
-      <section className="catalog-toolbar" aria-label="Catalog controls">
+      <section className="shop-layout" aria-label="Product catalog">
+        <aside className="shop-sidebar" aria-label="Catalog filters">
         <label className="search-field">
-          <span>Search</span>
+          <span>Search products</span>
           <input
             type="search"
-            placeholder="Search shirts, denim, trousers..."
+            placeholder="Search products..."
             value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            onChange={(event) => {
+              setSearchTerm(event.target.value)
+              setVisibleProductCount(PRODUCTS_PER_PAGE)
+            }}
           />
         </label>
 
-        <div className="filter-pills" aria-label="Filter by category">
-          {['All', ...categories].map((category) => (
+        <div className="shop-filter-block">
+          <h2>Categories</h2>
+          <button
+            className={selectedCategory === 'All' ? 'active' : ''}
+            type="button"
+            onClick={() => {
+              setSelectedCategory('All')
+              setVisibleProductCount(PRODUCTS_PER_PAGE)
+            }}
+          >
+            <span>All</span>
+            <em>{products.length}</em>
+          </button>
+          {categoryCounts.map((category) => (
             <button
-              className={selectedCategory === category ? 'active' : ''}
-              key={category}
+              className={selectedCategory === category.name ? 'active' : ''}
+              key={category.name}
               type="button"
-              onClick={() => setSelectedCategory(category)}
+              onClick={() => {
+                setSelectedCategory(category.name)
+                setVisibleProductCount(PRODUCTS_PER_PAGE)
+              }}
             >
-              {category}
+              <span>{category.name}</span>
+              <em>{category.count}</em>
             </button>
           ))}
         </div>
 
-        <label className="sort-field">
-          <span>Sort</span>
-          <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
-            <option value="featured">Featured</option>
-            <option value="price-low">Price low to high</option>
-            <option value="price-high">Price high to low</option>
-            <option value="stock">Most stock</option>
-          </select>
-        </label>
-
         {maxPrice > 0 && (
-          <label className="price-field">
-            <span>Max price</span>
+          <label className="price-field shop-filter-block">
+            <span>Price</span>
             <input
               type="range"
               min="0"
               max={maxPrice}
               step="100"
               value={priceCap || maxPrice}
-              onChange={(event) => setPriceCap(Number(event.target.value))}
+              onChange={(event) => {
+                setPriceCap(Number(event.target.value))
+                setVisibleProductCount(PRODUCTS_PER_PAGE)
+              }}
             />
             <strong>{formatter.format(priceCap || maxPrice)}</strong>
           </label>
         )}
-      </section>
 
-      <div className="catalog-status">
-        <span>
-          Showing {filteredProducts.length} of {products.length} products
-        </span>
-        {toast && <strong>{toast}</strong>}
-      </div>
+        <div className="shop-filter-block tag-cloud">
+          <h2>Product Tags</h2>
+          {['autumn', 'fashion', 'daily', 'new', 'style'].map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
+      </aside>
+
+      <div className="shop-products">
+        <div className="catalog-status">
+          <span>
+            Showing {Math.min(visibleProductCount, filteredProducts.length)} of{' '}
+            {filteredProducts.length} results
+          </span>
+          <label className="sort-field">
+            <span>Sort</span>
+            <select
+              value={sortMode}
+              onChange={(event) => {
+                setSortMode(event.target.value)
+                setVisibleProductCount(PRODUCTS_PER_PAGE)
+              }}
+            >
+              <option value="featured">Default sorting</option>
+              <option value="price-low">Price low to high</option>
+              <option value="price-high">Price high to low</option>
+              <option value="stock">Most stock</option>
+            </select>
+          </label>
+        </div>
 
       {filteredProducts.length === 0 ? (
         <section className="empty-cart catalog-empty">
@@ -309,14 +337,15 @@ export default function HomePage() {
               setSearchTerm('')
               setSelectedCategory('All')
               setPriceCap(maxPrice)
+              setVisibleProductCount(PRODUCTS_PER_PAGE)
             }}
           >
             Reset filters
           </button>
         </section>
       ) : (
-        <section className="product-grid" aria-label="All products">
-          {filteredProducts.map((product) => {
+        <section className="product-grid shop-grid" aria-label="All products">
+          {visibleProducts.map((product) => {
             const image = productImage(product)
             const stock = product.stock ?? 0
             const isLowStock = stock > 0 && stock <= 10
@@ -327,7 +356,7 @@ export default function HomePage() {
                 <Link className="product-media" href={`/products/${product.id}`}>
                   {image ? <img src={image} alt={product.name} /> : <span>No image</span>}
                   <span className={isUnavailable ? 'media-badge sold' : 'media-badge'}>
-                    {isUnavailable ? 'Sold out' : isLowStock ? 'Few left' : 'Ready'}
+                    {isUnavailable ? 'Sold Out' : isLowStock ? 'Sale' : 'New'}
                   </span>
                 </Link>
                 <div className="product-info">
@@ -345,14 +374,9 @@ export default function HomePage() {
                   <div className="product-footer">
                     <strong>{formatter.format(product.price)}</strong>
                     <div className="product-actions">
-                      <button
-                        type="button"
-                        onClick={() => addToCart(product)}
-                        disabled={isUnavailable}
-                      >
-                        Add
-                      </button>
-                      <Link href={`/products/${product.id}`}>View</Link>
+                      <Link href={`/products/${product.id}`} className="wishlist-link">
+                        Add to Wishlist
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -362,6 +386,19 @@ export default function HomePage() {
           })}
         </section>
       )}
+        {hasMoreProducts && (
+          <button
+            className="show-more-button"
+            type="button"
+            onClick={() =>
+              setVisibleProductCount((currentCount) => currentCount + PRODUCTS_PER_PAGE)
+            }
+          >
+            Show more
+          </button>
+        )}
+      </div>
+      </section>
     </>
   )
 
@@ -376,38 +413,131 @@ export default function HomePage() {
     )
   }
 
-  if (!user) {
+  if (isShopView && !user) {
     return (
       <main className="store-shell">
+        <div className="boutique-announcement">
+          <span>Members get access to the live catalog</span>
+        </div>
+
         <nav className="site-nav">
           <Link className="brand" href="/">
             <span className="brand-mark">S</span>
             <span>ShopSphere</span>
           </Link>
           <div className="nav-actions">
-            <Link className="link-button ghost" href="/login">
+            <Link className="link-button ghost" href="/login?next=%2Fshop">
               Login
             </Link>
-            <Link className="link-button dark" href="/signup">
+            <Link className="link-button dark" href="/signup?next=%2Fshop">
               Signup
             </Link>
           </div>
         </nav>
 
-        <section className="guest-hero public-home">
+        <section className="product-gate">
+          <div className="empty-cart">
+            <h1>Login to shop the full catalog.</h1>
+            <p>Create an account or login to view products, save wishlist items, and checkout.</p>
+            <Link className="link-button dark large" href="/signup?next=%2Fshop">
+              Continue to signup
+            </Link>
+          </div>
+        </section>
+        {user && <SphereAIChat />}
+        <StoreFooter />
+      </main>
+    )
+  }
+
+  if (!isShopView) {
+    const homeHref = user ? '/' : '/signup?next=%2F'
+    const shopHref = user ? '/shop' : '/signup?next=%2Fshop'
+    const loginHref = user ? '/' : '/login?next=%2F'
+    const signupHref = user ? '/shop' : '/signup?next=%2F'
+
+    return (
+      <main className="store-shell">
+        <div className="boutique-announcement">
+          <span>Free shipping on all orders over Rs. 999. Learn more!</span>
+        </div>
+
+        <nav className="site-nav">
+          <Link className="brand" href="/">
+            <span className="brand-mark">S</span>
+            <span>ShopSphere</span>
+          </Link>
+
+          <div className="nav-menu" aria-label="Main categories">
+            <Link href={homeHref}>Home</Link>
+            <Link href={shopHref}>Shop</Link>
+            <Link href={shopHref}>Pages</Link>
+            <Link href={shopHref}>Blog</Link>
+            <Link href={shopHref}>Contact</Link>
+          </div>
+
+          <div className="nav-actions">
+            {user ? (
+              <>
+                <Link className="cart-link" href="/cart" aria-label={`Cart with ${cartCount} items`}>
+                  Cart <span>{cartCount}</span>
+                </Link>
+                <UserThumbnail user={user} showLabel />
+                <button className="icon-button" type="button" onClick={logout} aria-label="Logout">
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link className="link-button ghost" href={loginHref}>
+                  Login
+                </Link>
+                <Link className="link-button dark" href={signupHref}>
+                  Signup
+                </Link>
+              </>
+            )}
+          </div>
+        </nav>
+
+        <section className="guest-hero public-home boutique-hero">
+          {heroProduct && productImage(heroProduct) && (
+            <div className="boutique-hero-video">
+              <span className="video-kicker">Campaign film</span>
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                poster={productImage(heroProduct)}
+                aria-label="ShopSphere campaign video"
+              >
+                <source
+                  src="https://cdn.coverr.co/videos/coverr-browsing-in-a-fashion-store-4162/720p.mp4"
+                  type="video/mp4"
+                />
+              </video>
+              <img
+                className="boutique-hero-image"
+                src={productImage(heroProduct)}
+                alt={heroProduct.name}
+              />
+            </div>
+          )}
           <div className="hero-copy">
-            <p className="eyebrow">Modern menswear marketplace</p>
-            <h1>Discover everyday style curated for sharper shopping.</h1>
+            <p className="hero-script">be style</p>
+            <p className="eyebrow">The new everyday wardrobe</p>
+            <h1>Enhancing your everyday style.</h1>
             <p className="hero-text">
-              ShopSphere brings shirts, tees, denim, and trousers into a clean storefront with
-              polished product previews. Login or signup to open the full catalog, cart, and checkout.
+              A refined ShopSphere edit of shirts, tees, denim, and trousers pulled straight from
+              your live Payload catalog.
             </p>
             <div className="hero-actions">
-              <Link className="link-button dark large" href="/signup">
-                Create account
+              <Link className="link-button dark large" href={shopHref}>
+                Buy now
               </Link>
-              <Link className="link-button outline large" href="/login">
-                Login
+              <Link className="link-button outline large" href={loginHref}>
+                {user ? 'Stay home' : 'Member login'}
               </Link>
             </div>
             <div className="access-metrics home-metrics" aria-label="Store highlights">
@@ -425,54 +555,86 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+        </section>
 
-          <div className="public-showcase" aria-label="Featured product preview">
-            {previewProducts[0] && (
-              <article className="preview-card hero-preview">
-                {productImage(previewProducts[0]) && (
-                  <img src={productImage(previewProducts[0])} alt={previewProducts[0].name} />
-                )}
-                <div>
-                  <span>{categoryName(previewProducts[0])}</span>
-                  <h2>{previewProducts[0].name}</h2>
-                  <RatingStars compact product={previewProducts[0]} />
-                  <p>{formatter.format(previewProducts[0].price)}</p>
-                </div>
-              </article>
-            )}
-
-            <div className="preview-stack">
-              {previewProducts.slice(1).map((product) => (
-                <article className="preview-card mini-preview" key={product.id}>
-                  {productImage(product) && <img src={productImage(product)} alt={product.name} />}
-                  <div>
-                    <span>{categoryName(product)}</span>
-                    <h3>{product.name}</h3>
-                    <RatingStars compact product={product} />
-                    <p>{formatter.format(product.price)}</p>
-                  </div>
-                </article>
-              ))}
-
-              <div className="join-card">
-                <span>Members get full access</span>
-                <strong>View details, add to cart, and checkout after login.</strong>
-                <Link className="link-button dark" href="/signup">
-                  Join now
-                </Link>
-              </div>
-            </div>
+        <section className="home-service-strip" aria-label="Store service highlights">
+          <div>
+            <span className="service-icon">01</span>
+            <strong>Flat-rate Delivery</strong>
+          </div>
+          <div>
+            <span className="service-icon">24/7</span>
+            <strong>Support 24/7</strong>
+          </div>
+          <div>
+            <span className="service-icon">SSL</span>
+            <strong>Secure Payment</strong>
+          </div>
+          <div>
+            <span className="service-icon">30D</span>
+            <strong>Free Return</strong>
           </div>
         </section>
 
+        <section className="membership-section" id="membership" aria-label="ShopSphere membership">
+          <div className="membership-copy">
+            <p className="eyebrow">ShopSphere membership</p>
+            <h2>Premium delivery and savings for Rs. 99/month.</h2>
+            <p>
+              Become a member to get free delivery, faster shipment priority, automatic discounts,
+              early access to new drops, and more benefits on every order.
+            </p>
+            <div className="membership-actions">
+              <Link className="link-button dark large" href={shopHref}>
+                Buy membership
+              </Link>
+              <span>Cancel anytime</span>
+            </div>
+          </div>
+
+          <div className="membership-card">
+            <span>Rs. 99</span>
+            <strong>per month</strong>
+            <ul>
+              <li>Free delivery on eligible orders</li>
+              <li>Fast shipment priority</li>
+              <li>10 percent discount on every order</li>
+              <li>Early access to new arrivals</li>
+              <li>Extra member-only offers and support</li>
+            </ul>
+          </div>
+        </section>
+
+        {categoryTiles.length > 0 && (
+          <section className="collection-story" id="edits" aria-label="Shop by edit">
+            <div className="section-heading centered">
+              <p className="eyebrow">Shop by edit</p>
+              <h2>Polished essentials, arranged like a boutique rail.</h2>
+            </div>
+            <div className="collection-tiles">
+              {categoryTiles.map((product) => (
+                <Link
+                  className="collection-tile"
+                  href={user ? `/products/${product.id}` : shopHref}
+                  key={product.id}
+                >
+                  {productImage(product) && <img src={productImage(product)} alt={categoryName(product)} />}
+                  <span>{categoryName(product)}</span>
+                  <strong>Explore the edit</strong>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         {previewProducts.length > 0 && (
-          <section className="public-product-strip" aria-label="Product preview">
-            <div className="section-heading">
-              <p className="eyebrow">Preview the edit</p>
-              <h2>A small look at what is waiting inside.</h2>
+          <section className="public-product-strip" id="preview" aria-label="Product preview">
+            <div className="section-heading centered">
+              <p className="eyebrow">Just landed</p>
+              <h2>Clean silhouettes from the current ShopSphere drop.</h2>
             </div>
             <div className="preview-row">
-              {products.slice(0, 6).map((product) => (
+              {editorialProducts.map((product) => (
                 <article className="strip-card" key={product.id}>
                   {productImage(product) && <img src={productImage(product)} alt={product.name} />}
                   <div>
@@ -488,18 +650,43 @@ export default function HomePage() {
         )}
 
         {error && <p className="alert">{error}</p>}
+        {user && <SphereAIChat />}
+        <StoreFooter />
       </main>
     )
   }
 
   return (
     <main className="store-shell">
+      <div className="boutique-announcement">
+        <span>Free styling help with SphereAI</span>
+        <a href="#catalog">Shop the live catalog</a>
+        <span>{products.length} pieces available</span>
+      </div>
+
       <nav className="site-nav">
         <Link className="brand" href="/">
           <span className="brand-mark">S</span>
           <span>ShopSphere</span>
         </Link>
+        <div className="nav-menu" aria-label="Main categories">
+          <a href="#catalog">New in</a>
+          <a href="#catalog">Categories</a>
+          <a href="#catalog">Featured</a>
+        </div>
         <div className="nav-actions">
+          <label className="nav-search">
+            <span>Search catalog</span>
+            <input
+              type="search"
+              placeholder="Search products"
+              value={searchTerm}
+              onChange={(event) => {
+                setSearchTerm(event.target.value)
+                setVisibleProductCount(PRODUCTS_PER_PAGE)
+              }}
+            />
+          </label>
           <Link className="cart-link" href="/cart" aria-label={`Cart with ${cartCount} items`}>
             Cart <span>{cartCount}</span>
           </Link>
@@ -510,59 +697,15 @@ export default function HomePage() {
         </div>
       </nav>
 
-      <section className="catalog-hero">
-        <div>
-          <p className="eyebrow">Live Payload catalog</p>
-          <h1>Shop the drop with a faster, richer catalog.</h1>
-          <p className="hero-text">
-            Search, filter, sort, preview inventory, and jump into each product with smooth,
-            image-forward shopping built around the current Payload collection.
-          </p>
-        </div>
-        {spotlightProduct && (
-          <Link className="catalog-spotlight" href={`/products/${spotlightProduct.id}`}>
-            {productImage(spotlightProduct) && (
-              <img src={productImage(spotlightProduct)} alt={spotlightProduct.name} />
-            )}
-            <span>{categoryName(spotlightProduct)}</span>
-            <strong>{spotlightProduct.name}</strong>
-            <RatingStars compact product={spotlightProduct} />
-            <em>{formatter.format(spotlightProduct.price)}</em>
-          </Link>
-        )}
-      </section>
-
       {error && <p className="alert">{error}</p>}
 
-      <section className="category-row" aria-label="Product categories">
-        {categories.map((category) => (
-          <span key={category}>{category}</span>
-        ))}
-      </section>
-
-      {featuredProducts.length > 0 && (
-        <section className="featured-grid interactive" aria-label="Featured products">
-          {featuredProducts.map((product, index) => (
-            <article
-              className={activeSpotlight === index ? 'feature-card active' : 'feature-card'}
-              key={product.id}
-              onMouseEnter={() => setActiveSpotlight(index)}
-            >
-              {productImage(product) && (
-                <img src={productImage(product)} alt={product.name} className="feature-image" />
-              )}
-              <div>
-                <span>{categoryName(product)}</span>
-                <h2>{product.name}</h2>
-                <RatingStars compact product={product} />
-                <p>{formatter.format(product.price)}</p>
-              </div>
-            </article>
-          ))}
-        </section>
-      )}
-
-      {catalogContent}
+      <section id="catalog">{catalogContent}</section>
+      {user && <SphereAIChat />}
+      <StoreFooter />
     </main>
   )
+}
+
+export default function HomePage() {
+  return <StorefrontPage />
 }

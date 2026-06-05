@@ -5,8 +5,19 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
+import { StoreFooter } from '../components/StoreFooter'
+
 export default function LoginPage() {
   const router = useRouter()
+  const [nextPath] = useState(() => {
+    if (typeof window === 'undefined') {
+      return '/'
+    }
+
+    const next = new URLSearchParams(window.location.search).get('next') || '/'
+
+    return next.startsWith('/') && !next.startsWith('//') ? next : '/'
+  })
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -31,7 +42,7 @@ export default function LoginPage() {
     setSubmitting(false)
 
     if (res.ok) {
-      router.push('/')
+      router.push(nextPath)
       return
     }
 
@@ -90,10 +101,11 @@ export default function LoginPage() {
           </button>
 
           <p className="auth-switch">
-            New here? <Link href="/signup">Create an account</Link>
+            New here? <Link href={`/signup?next=${encodeURIComponent(nextPath)}`}>Create an account</Link>
           </p>
         </form>
       </section>
+      <StoreFooter />
     </main>
   )
 }

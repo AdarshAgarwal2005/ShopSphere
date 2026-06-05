@@ -5,8 +5,19 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
+import { StoreFooter } from '../components/StoreFooter'
+
 export default function SignupPage() {
   const router = useRouter()
+  const [nextPath] = useState(() => {
+    if (typeof window === 'undefined') {
+      return '/'
+    }
+
+    const next = new URLSearchParams(window.location.search).get('next') || '/'
+
+    return next.startsWith('/') && !next.startsWith('//') ? next : '/'
+  })
   const [name, setName] = useState('')
   const [age, setAge] = useState('')
   const [email, setEmail] = useState('')
@@ -35,7 +46,18 @@ export default function SignupPage() {
     setSubmitting(false)
 
     if (res.ok) {
-      router.push('/login')
+      const loginRes = await fetch('/api/users/login', {
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        method: 'POST',
+      })
+
+      router.push(loginRes.ok ? nextPath : `/login?next=${encodeURIComponent(nextPath)}`)
       return
     }
 
@@ -119,10 +141,11 @@ export default function SignupPage() {
           </button>
 
           <p className="auth-switch">
-            Already registered? <Link href="/login">Login</Link>
+            Already registered? <Link href={`/login?next=${encodeURIComponent(nextPath)}`}>Login</Link>
           </p>
         </form>
       </section>
+      <StoreFooter />
     </main>
   )
 }

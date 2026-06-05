@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
+import { StoreFooter } from '../components/StoreFooter'
 import { UserThumbnail } from '../components/UserThumbnail'
 
 type Media = {
@@ -405,6 +406,7 @@ export default function CartPage() {
           </aside>
         </section>
       )}
+      <StoreFooter />
     </main>
   )
 }

@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 
+import { StoreFooter } from '../../components/StoreFooter'
 import { UserThumbnail } from '../../components/UserThumbnail'
 
 type Category = {
@@ -20,19 +21,10 @@ type Product = {
   id: string
   name: string
   price: number
-  averageRating?: number | null
   description?: string
-  ratingCount?: number | null
-  ratings?: ProductRating[]
   stock?: number
   category?: Category | string
   image?: Media | string
-}
-
-type ProductRating = {
-  id?: string
-  rating?: number | null
-  user?: User | string | null
 }
 
 type CartItem = {
@@ -62,35 +54,6 @@ const categoryName = (product: Product) =>
 
 const productImage = (product: Product) =>
   typeof product.image === 'object' && product.image?.url ? product.image.url : undefined
-
-const starterRatingForName = (name?: string | null) => {
-  const source = name || 'ShopSphere'
-  const score = Array.from(source).reduce((sum, char) => sum + char.charCodeAt(0), 0)
-
-  return Number((4.1 + (score % 8) / 10).toFixed(1))
-}
-
-const productRating = (product: Product) =>
-  typeof product.averageRating === 'number' && product.averageRating > 0
-    ? Number(product.averageRating.toFixed(1))
-    : starterRatingForName(product.name)
-
-const productRatingCount = (product: Product) =>
-  typeof product.ratingCount === 'number' && product.ratingCount > 0 ? product.ratingCount : 18
-
-const RatingStars = ({ rating, count }: { count: number; rating: number }) => (
-  <div className="rating-stars detail-rating" aria-label={`${rating} out of 5 stars`}>
-    <span aria-hidden="true">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <b className={index < Math.round(rating) ? 'filled' : ''} key={index}>
-          ★
-        </b>
-      ))}
-    </span>
-    <strong>{rating.toFixed(1)}</strong>
-    <em>average from {count} ratings</em>
-  </div>
-)
 
 const readCart = (): CartItem[] => {
   try {
@@ -125,12 +88,6 @@ export default function ProductDetailPage() {
   const [error, setError] = useState('')
   const [cartMessage, setCartMessage] = useState('')
   const [cartCount, setCartCount] = useState(cartCountFromStorage)
-  const [imageZoomed, setImageZoomed] = useState(false)
-  const [selectedFit, setSelectedFit] = useState('Regular')
-  const [selectedSize, setSelectedSize] = useState('M')
-  const [selectedRating, setSelectedRating] = useState(0)
-  const [ratingMessage, setRatingMessage] = useState('')
-  const [ratingSubmitting, setRatingSubmitting] = useState(false)
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -171,16 +128,6 @@ export default function ProductDetailPage() {
   const stock = product?.stock ?? 0
   const isUnavailable = stock <= 0
   const image = product ? productImage(product) : undefined
-  const averageRating = product ? productRating(product) : 0
-  const ratingCount = product ? productRatingCount(product) : 0
-
-  const totalPreview = useMemo(() => {
-    if (!product) {
-      return formatter.format(0)
-    }
-
-    return formatter.format(product.price * quantity)
-  }, [product, quantity])
 
   const addToCart = () => {
     if (!product || isUnavailable) {
@@ -199,36 +146,6 @@ export default function ProductDetailPage() {
     writeCart(cart)
     setCartCount(cart.reduce((sum, item) => sum + item.quantity, 0))
     setCartMessage(`${product.name} added to cart.`)
-  }
-
-  const submitRating = async () => {
-    if (!product || !selectedRating) {
-      setRatingMessage('Choose a star rating first.')
-      return
-    }
-
-    setRatingSubmitting(true)
-    setRatingMessage('')
-
-    const res = await fetch(`/api/products/${product.id}/rating`, {
-      body: JSON.stringify({ rating: selectedRating }),
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      method: 'POST',
-    })
-    const data = await res.json().catch(() => null)
-
-    setRatingSubmitting(false)
-
-    if (!res.ok) {
-      setRatingMessage(data?.message ?? 'Unable to save rating.')
-      return
-    }
-
-    setProduct(data.product)
-    setRatingMessage(`Thanks. You rated this ${selectedRating} out of 5.`)
   }
 
   if (loading) {
@@ -251,10 +168,10 @@ export default function ProductDetailPage() {
             <span>ShopSphere</span>
           </Link>
           <div className="nav-actions">
-            <Link className="link-button ghost" href="/login">
+            <Link className="link-button ghost" href={`/login?next=${encodeURIComponent(`/products/${params.id}`)}`}>
               Login
             </Link>
-            <Link className="link-button dark" href="/signup">
+            <Link className="link-button dark" href={`/signup?next=${encodeURIComponent(`/products/${params.id}`)}`}>
               Signup
             </Link>
           </div>
@@ -271,10 +188,10 @@ export default function ProductDetailPage() {
                 ShopSphere members.
               </p>
               <div className="hero-actions">
-                <Link className="link-button dark large" href="/login">
+                <Link className="link-button dark large" href={`/login?next=${encodeURIComponent(`/products/${params.id}`)}`}>
                   Login
                 </Link>
-                <Link className="link-button outline large" href="/signup">
+                <Link className="link-button outline large" href={`/signup?next=${encodeURIComponent(`/products/${params.id}`)}`}>
                   Signup
                 </Link>
               </div>
@@ -290,6 +207,7 @@ export default function ProductDetailPage() {
             </div>
           </section>
         )}
+        <StoreFooter />
       </main>
     )
   }
@@ -305,135 +223,85 @@ export default function ProductDetailPage() {
           <Link className="cart-link" href="/cart" aria-label={`Cart with ${cartCount} items`}>
             Cart <span>{cartCount}</span>
           </Link>
-          <Link className="link-button outline" href="/">
+          <Link className="link-button outline" href="/shop">
             Products
           </Link>
           <UserThumbnail user={user} />
         </div>
       </nav>
 
-      <section className="product-detail">
-        <button
-          className={imageZoomed ? 'detail-media zoomed' : 'detail-media'}
-          type="button"
-          onClick={() => setImageZoomed((value) => !value)}
-          aria-label={imageZoomed ? 'Show full product image' : 'Zoom product image'}
-        >
+      <section className="product-detail product-detail-shop">
+        <div className="product-breadcrumb">
+          <Link href="/">Home</Link>
+          <span>/</span>
+          <Link href="/shop">{categoryName(product)}</Link>
+          <span>/</span>
+          <strong>{product.name}</strong>
+        </div>
+        <div className="product-step-links">
+          <Link href="/shop">Previous</Link>
+          <span>|</span>
+          <Link href="/shop">Next</Link>
+        </div>
+
+        <aside className="detail-thumbs" aria-label="Product thumbnails">
+          {[0, 1, 2].map((thumb) => (
+            <button className={thumb === 0 ? 'active' : ''} type="button" key={thumb}>
+              {image ? <img src={image} alt="" /> : <span />}
+            </button>
+          ))}
+        </aside>
+
+        <div className="detail-media">
           {image ? <img src={image} alt={product.name} /> : <span>No image available</span>}
-          <span className="media-hint">{imageZoomed ? 'Fit' : 'Zoom'}</span>
-        </button>
+        </div>
 
         <div className="detail-copy">
-          <p className="eyebrow">{categoryName(product)}</p>
           <h1>{product.name}</h1>
           <p className="detail-price">{formatter.format(product.price)}</p>
-          <RatingStars count={ratingCount} rating={averageRating} />
           <p className="detail-description">
-            {product.description || 'This product does not have a description yet.'}
+            {product.description || 'A clean everyday piece from the current ShopSphere catalog.'}
           </p>
 
-          <section className="rating-panel" aria-label="Rate this product">
-            <div>
-              <span>Rate this product</span>
-              <strong>{selectedRating ? `${selectedRating}/5` : 'Choose stars'}</strong>
+          <div className="detail-purchase-row">
+            <div className="cart-controls" aria-label="Choose quantity">
+              <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))}>
+                -
+              </button>
+              <span>{quantity}</span>
+              <button
+                type="button"
+                onClick={() => setQuantity((value) => Math.min(stock || 1, value + 1))}
+              >
+                +
+              </button>
             </div>
-            <div className="rating-input" role="radiogroup" aria-label="Choose rating">
-              {[1, 2, 3, 4, 5].map((rating) => (
-                <button
-                  aria-checked={selectedRating === rating}
-                  className={selectedRating >= rating ? 'active' : ''}
-                  key={rating}
-                  role="radio"
-                  type="button"
-                  onClick={() => setSelectedRating(rating)}
-                >
-                  ★
-                </button>
-              ))}
-            </div>
+
             <button
-              className="link-button dark"
+              className="submit-button detail-add"
               type="button"
-              onClick={submitRating}
-              disabled={ratingSubmitting}
+              onClick={addToCart}
+              disabled={isUnavailable}
             >
-              {ratingSubmitting ? 'Saving rating...' : 'Submit rating'}
-            </button>
-            {ratingMessage && <p>{ratingMessage}</p>}
-          </section>
-
-          <div className="detail-options" aria-label="Style options">
-            <div>
-              <span>Fit</span>
-              {['Regular', 'Relaxed', 'Slim'].map((fit) => (
-                <button
-                  className={selectedFit === fit ? 'active' : ''}
-                  key={fit}
-                  type="button"
-                  onClick={() => setSelectedFit(fit)}
-                >
-                  {fit}
-                </button>
-              ))}
-            </div>
-            <div>
-              <span>Size</span>
-              {['S', 'M', 'L', 'XL'].map((size) => (
-                <button
-                  className={selectedSize === size ? 'active' : ''}
-                  key={size}
-                  type="button"
-                  onClick={() => setSelectedSize(size)}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <dl className="detail-facts">
-            <div>
-              <dt>Availability</dt>
-              <dd>{isUnavailable ? 'Out of stock' : `${stock} in stock`}</dd>
-            </div>
-            <div>
-              <dt>Category</dt>
-              <dd>{categoryName(product)}</dd>
-            </div>
-            <div>
-              <dt>Selected</dt>
-              <dd>
-                {selectedFit}, {selectedSize}
-              </dd>
-            </div>
-          </dl>
-
-          <div className="detail-total">
-            <span>Estimated cart total</span>
-            <strong>{totalPreview}</strong>
-          </div>
-
-          <div className="cart-controls" aria-label="Choose quantity">
-            <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))}>
-              -
-            </button>
-            <span>{quantity}</span>
-            <button
-              type="button"
-              onClick={() => setQuantity((value) => Math.min(stock || 1, value + 1))}
-            >
-              +
+              {isUnavailable ? 'Out of stock' : 'Add to cart'}
             </button>
           </div>
 
-          <button
-            className="submit-button detail-add"
-            type="button"
-            onClick={addToCart}
-            disabled={isUnavailable}
-          >
-            {isUnavailable ? 'Out of stock' : 'Add to cart'}
-          </button>
+          <Link className="detail-wishlist" href="/shop">
+            Add to Wishlist
+          </Link>
+
+          <div className="detail-meta">
+            <p>
+              Categories: <strong>{categoryName(product)}</strong>
+            </p>
+            <p>
+              Tags: <strong>fashion, daily, summer</strong>
+            </p>
+            <p>
+              Availability: <strong>{isUnavailable ? 'Out of stock' : `${stock} in stock`}</strong>
+            </p>
+          </div>
 
           {cartMessage && (
             <div className="cart-confirmation">
@@ -444,12 +312,21 @@ export default function ProductDetailPage() {
             </div>
           )}
 
-          <div className="checkout-note">
-            <strong>Test checkout ready</strong>
-            <span>Cart payments open securely through Razorpay test mode.</span>
+          <div className="safe-checkout">
+            <span>Guaranteed safe checkout</span>
+            <div>
+              <strong>VISA</strong>
+              <strong>MasterCard</strong>
+              <strong>AMEX</strong>
+              <strong>Discover</strong>
+              <strong>PayPal</strong>
+            </div>
           </div>
         </div>
       </section>
+      <StoreFooter />
     </main>
   )
 }
+
+

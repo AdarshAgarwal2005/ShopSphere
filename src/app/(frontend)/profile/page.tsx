@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
+import { StoreFooter } from '../components/StoreFooter'
 import { UserThumbnail } from '../components/UserThumbnail'
 
 type Media = {
@@ -360,6 +361,7 @@ export default function ProfilePage() {
           )}
         </section>
       </section>
+      <StoreFooter />
     </main>
   )
 }
